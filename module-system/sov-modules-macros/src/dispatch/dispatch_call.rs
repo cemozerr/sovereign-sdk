@@ -21,6 +21,21 @@ impl<'a> StructDef<'a> {
             .collect()
     }
 
+    fn create_event_enum_legs(&self) -> Vec<proc_macro2::TokenStream> {
+        self.fields
+            .iter()
+            .map(|field| {
+                let name = &field.ident;
+                let ty = &field.ty;
+
+                quote::quote!(
+                    #[doc = "Module event."]
+                    #name(<#ty as ::sov_modules_api::Module>::Event),
+                )
+            })
+            .collect()
+    }
+
     fn create_call_dispatch(&self) -> proc_macro2::TokenStream {
         let enum_ident = self.enum_ident(CALL);
         let type_generics = &self.type_generics;
@@ -91,6 +106,8 @@ pub(crate) struct DispatchCallMacro {
     field_extractor: StructFieldExtractor,
 }
 
+const EVENT: &str = "Event";
+
 impl DispatchCallMacro {
     pub(crate) fn new(name: &'static str) -> Self {
         Self {
@@ -127,11 +144,18 @@ impl DispatchCallMacro {
 
         let call_enum_legs = struct_def.create_call_enum_legs();
         let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods);
+
+        let event_enum_legs = struct_def.create_event_enum_legs();
+        let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &serialization_methods);
+
         let create_dispatch_impl = struct_def.create_call_dispatch();
 
         Ok(quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to call messages from the relevant modules"]
             #call_enum
+
+            #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
+            #event_enum
 
             #create_dispatch_impl
         }
